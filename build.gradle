@@ -1,0 +1,84 @@
+plugins {
+    id 'org.springframework.boot' version '2.6.3'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+    id 'checkstyle'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'com.github.krraghavan:xeger:1.0.0-RELEASE'
+    implementation 'org.springframework.boot:spring-boot-starter-validation:2.4.0'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks {
+    test{
+        dependsOn checkstyleMain
+        dependsOn checkstyleTest
+    }
+}
+
+checkstyle {
+    toolVersion '7.8.1'
+    configFile file("config/checkstyle/checkstyle.xml")
+}
+checkstyleMain {
+    source = 'src/main/java'
+}
+checkstyleTest {
+    source = 'src/test/java'
+}
+
+task stage(dependsOn: ['bootJar'])
+
+tasks.stage.doLast() {
+    delete fileTree(dir: "build/distributions")
+    delete fileTree(dir: "build/assetCompile")
+    delete fileTree(dir: "build/distributions")
+    delete fileTree(dir: "build/libs", exclude: "*.jar") //delete everything except jar file inside build folder
+}
+
+jar { //Don't package test folders and files
+    exclude "test/**"
+    exclude "test/**/**"
+}
+
+build.mustRunAfter clean //First clean then build to avoid cache issues etc
+
+gradle.taskGraph.whenReady {
+    taskGraph ->
+        if (taskGraph.hasTask(stage)) { //Don't run test on heroku
+            test.enabled = false
+        }
+}
+
+bootJar { //Exclude test files when pack boot jar file
+    enabled = true
+    classifier = 'boot'
+    exclude "test/**"
+    exclude "test/**/**"
+}
